@@ -91,6 +91,7 @@
     (define-key haskell-mode-map "\C-c\C-rlo"  'hare-refactor-lift-one)
     (define-key haskell-mode-map "\C-c\C-rlt"  'hare-refactor-lifttotop)
     (define-key haskell-mode-map "\C-c\C-rr"   'hare-refactor-rename)
+    (define-key haskell-mode-map "\C-c\C-rsh"  'hare-refactor-show)
     (hare-init-menu)
     (setq hare-initialized t)))
 
@@ -111,6 +112,7 @@
   (define-key haskell-mode-map [menu-bar mymenu lo] '("Lift one level"       . hare-refactor-lift-one))
   (define-key haskell-mode-map [menu-bar mymenu lt] '("Lift to top level"    . hare-refactor-lifttotop))
   (define-key haskell-mode-map [menu-bar mymenu r ] '("Rename"               . hare-refactor-rename))
+  (define-key haskell-mode-map [menu-bar mymenu sh ] '("Show"                 . hare-refactor-show))
 )
 
 (defun hare-init-interactive ()
@@ -195,7 +197,8 @@
                 (setq unopened-files (cons file-to-diff unopened-files))
                 )
               (hare-ediff file-to-diff (concat (file-name-sans-extension file-to-diff) 
-                                                   (file-name-extension file-to-diff t) ".refactored")))
+                                                ".refactored"
+                                                (file-name-extension file-to-diff t) )))
           (progn
             (setq modified-files nil)
             (commit-or-abort))))
@@ -329,7 +332,8 @@
               (setq files (cons
                            (list uf uf
                            (concat (file-name-sans-extension uf)
-                                   (file-name-extension uf t) ".refactored"))
+                                   ".refactored"
+                                   (file-name-extension uf t) ))
                            files))))
           (message "files=%s" (prin1-to-string files))
           (delete-swp-file-and-buffers files)
@@ -874,7 +878,8 @@
            (setq modified-files (cdr modified))
            (hare-ediff first-file
                            (concat (file-name-sans-extension first-file)
-                                   (file-name-extension first-file t) ".refactored")))
+                                   ".refactored"
+                                   (file-name-extension first-file t))))
           ((equal answer 'c)
            (commit))
           ((equal answer 'n)
@@ -1044,6 +1049,23 @@
         (hare-refactor-command current-file-name line-no column-no
                          `("rename" ,current-file-name ,name
                          ,(number-to-string line-no) ,(number-to-string column-no)
+                         )
+                         hare-search-paths 'emacs tab-width)
+      (message "Refactoring aborted."))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun hare-refactor-show ()
+  "Show ghc-hare config."
+  (interactive)
+  ;(interactive (list (read-string "new identifier name: ")))
+  (let ((current-file-name (buffer-file-name))
+        (line-no           (current-line-no))
+        (column-no         (current-column-no))
+        (buffer (current-buffer)))
+    (if (buffers-saved)
+        (hare-refactor-command current-file-name line-no column-no
+                         `("show"
                          )
                          hare-search-paths 'emacs tab-width)
       (message "Refactoring aborted."))))

@@ -1,7 +1,31 @@
 # HaRe : The Haskell Refactorer
 
+[![Available on Hackage][badge-hackage]][hackage]
+[![License BSD3][badge-license]][license]
+[![Build Status][badge-travis]][travis]
 
-[![Build Status](https://secure.travis-ci.org/alanz/HaRe.png?branch=master)](http://travis-ci.org/alanz/HaRe)
+[badge-travis]: https://travis-ci.org/alanz/HaRe.png?branch=master
+[travis]: https://travis-ci.org/alanz/HaRe
+[badge-hackage]: https://img.shields.io/hackage/v/HaRe.svg?dummy
+[hackage]: https://hackage.haskell.org/package/HaRe
+[badge-license]: https://img.shields.io/badge/license-BSD3-green.svg?dummy
+[license]: https://github.com/alanz/HaRe/blob/master/LICENSE
+
+Note: The current version (0.7.2.8) does not install with GHC 7.8.x
+
+## Roadmap
+
+The token management utilities [haskell-token-utils](https://github.com/alanz/haskell-token-utils)
+are too brittle, and will not be updated for GHC 7.8.x and beyond.
+
+There are substantial changes coming in GHC 7.10, which will form the
+basis of the new token management, based on
+[ghc-exactprint](https://github.com/alanz/ghc-exactprint)
+
+For coming changes in GHC 7.10, see
+
+  * https://ghc.haskell.org/trac/ghc/wiki/GhcApi
+  * https://ghc.haskell.org/trac/ghc/wiki/GhcAstAnnotations
 
 ## Getting Started
 
@@ -10,7 +34,7 @@
 Check that it works from the command line
 
     $ ghc-hare --version
-    0.7.0.0
+    0.7.2.x
 
 Running the bare command lists available refactorings and their parameters
 
@@ -21,24 +45,23 @@ Currently only emacs integration is offered. Add the following to your
 your machine.
 
     (add-to-list 'load-path
-        "~/.cabal/share/HaRe-0.7.0.3/elisp")
+        "~/.cabal/share/HaRe-0.7.2.2/elisp")
     (add-to-list 'load-path
-        "~/.cabal/share/i386-linux-ghc-7.6.3/HaRe-0.7.0.3/elisp")
+        "~/.cabal/share/i386-linux-ghc-7.6.3/HaRe-0.7.2.2/elisp")
     (require 'hare)
     (autoload 'hare-init "hare" nil t)
 
 Add an intializer hook to the ghc-mode command
 
-    (add-hook 'haskell-mode-hook (lambda () (ghc-init) (hare-init) (flymake-mode)))
+    (add-hook 'haskell-mode-hook (lambda () (ghc-init) (hare-init)))
 
 Alternatively, if using haskell-mode, and initializing via a function
 
     ;; Haskell main editing mode key bindings.
     (defun haskell-hook ()
 
-      ;(lambda nil (ghc-init) (flymake-mode))
+      ;(lambda nil (ghc-init))
       (ghc-init)
-      (flymake-mode)
       (hare-init)
       ...
     )
@@ -83,6 +106,14 @@ required. In theory.
 
 Join in at `#haskell-refactorer` on freenode.
 
+### Developing in sandbox with haskell-token-utils locally
+
+    cabal clean
+    cabal sandbox init
+    # Next line assumes haskell-token-utils checked out at same level
+    cabal sandbox add-source ../haskell-token-utils/
+    cabal install --dependencies-only
+
 ### Running test suite
 
 To run the test suite do:
@@ -100,6 +131,9 @@ see <http://travis-ci.org/#alanz/HaRe> for continuous build results
     Applications") (if only for the diagram of GHC phases and data structures)
   * [GHC 7.6.3 API docs](http://www.haskell.org/ghc/docs/7.6.3/html/libraries/ghc-7.6.3/GHC.html)
   * [GHC 7.4.2 API docs](http://www.haskell.org/ghc/docs/7.4.2/html/libraries/ghc-7.4.2/GHC.html)
+  * [Monoids: Theme and Variations](http://www.cis.upenn.edu/~byorgey/pub/monoid-pearl.pdf) 
+    The background to how the dual tree data structure used for token
+    output works
 
 ## Coding style
 
@@ -108,8 +142,18 @@ Note:A consistent coding layout style is more important than what specific on is
 
 ## Contributors
 
+ * Simon Thompson
  * Christopher Brown
  * Huiqing Li
  * Alan Zimmerman
- * Many others, ..
+
+Please put a pull request for this list if you are missing.
+
+## Logo
+
+<img src="https://rawgithub.com/alanz/HaRe/master/HaReLogo.svg"
+width="400" height="300" />
+
+The logo was designed by Christi du Toit,
+<http://www.behance.net/christidutoit>
 

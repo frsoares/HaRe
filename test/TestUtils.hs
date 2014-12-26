@@ -1,5 +1,6 @@
 module TestUtils
        ( compareFiles
+       , compareStrings
        , parsedFileGhc
        , parseSourceFileTest
        , getTestDynFlags
@@ -10,7 +11,12 @@ module TestUtils
        , initialState
        , initialLogOnState
        , toksFromState
-       , entriesFromState
+       , renderTree
+       -- , pprFromState
+       , sourceTreeFromState
+       , linesFromState
+       , layoutFromState
+       -- , entriesFromState
        , defaultTestSettings
        , logTestSettings
        , testSettingsMainfile
@@ -22,6 +28,9 @@ module TestUtils
        , unspace
        , mkTestGhcName
        , setLogger
+
+       , pwd
+       , cd
        ) where
 
 
@@ -32,20 +41,33 @@ import qualified Unique        as GHC
 import Data.Algorithm.Diff
 import Exception
 import Language.Haskell.GhcMod
-import Language.Haskell.Refact.Utils
+import Language.Haskell.Refact.Utils.Utils
 import Language.Haskell.Refact.Utils.LocUtils
 import Language.Haskell.Refact.Utils.Monad
 import Language.Haskell.Refact.Utils.MonadFunctions
-import Language.Haskell.Refact.Utils.TokenUtils
-import Language.Haskell.Refact.Utils.TokenUtilsTypes
+-- import Language.Haskell.Refact.Utils.TokenUtils
 import Language.Haskell.Refact.Utils.TypeSyn
+
+import Language.Haskell.TokenUtils.Types
+
 import Numeric
 
+import Language.Haskell.TokenUtils.DualTree
+
 import Data.Tree
+import System.Directory
 import System.Log.Handler.Simple
 import System.Log.Logger
 import qualified Data.Map as Map
 
+
+-- ---------------------------------------------------------------------
+
+pwd :: IO FilePath
+pwd = getCurrentDirectory
+
+cd :: FilePath -> IO ()
+cd = setCurrentDirectory
 
 -- ---------------------------------------------------------------------
 
@@ -54,12 +76,18 @@ hex v = "0x" ++ showHex v ""
 
 -- ---------------------------------------------------------------------
 
-compareFiles :: FilePath -> FilePath -> IO [(DI, [String])]
+compareFiles :: FilePath -> FilePath -> IO [Diff [String]]
 compareFiles fileA fileB = do
   astr <- readFile fileA
   bstr <- readFile fileB
-  -- putStrLn $ "compareFiles " ++ (show $ lines astr) ++ "," ++ (show $ lines bstr) 
-  return $ filter (\(c,_) -> c /= B) $ getGroupedDiff (lines astr) (lines bstr)
+  -- return $ filter (\c -> not( isBoth c)) $ getGroupedDiff (lines astr) (lines bstr)
+  return $ compareStrings astr bstr
+
+compareStrings :: String -> String -> [Diff [String]]
+compareStrings astr bstr = filter (\c -> not( isBoth c)) $ getGroupedDiff (lines astr) (lines bstr)
+    where
+      isBoth (Both _ _) = True
+      isBoth _        = False
 
 -- ---------------------------------------------------------------------
 
@@ -89,6 +117,9 @@ initialState = RefSt
   , rsUniqState = 1
   , rsFlags = RefFlags False
   , rsStorage = StorageNone
+  , rsGraph = []
+  , rsModuleGraph = []
+  , rsCurrentTarget = Nothing
   , rsModule = Nothing
   }
 
@@ -100,30 +131,69 @@ initialLogOnState = RefSt
   , rsUniqState = 1
   , rsFlags = RefFlags False
   , rsStorage = StorageNone
+  , rsGraph = []
+  , rsModuleGraph = []
+  , rsCurrentTarget = Nothing
   , rsModule = Nothing
   }
 
 -- ---------------------------------------------------------------------
 
-toksFromState :: RefactState -> [PosToken]
+-- toksFromState :: RefactState -> [PosToken]
+toksFromState :: RefactState -> String
 toksFromState st =
   case (rsModule st) of
-    -- Just tm -> retrieveTokens $ (tkCache $ rsTokenCache tm) Map.! mainTid
+    Just tm -> renderSourceTree $ layoutTreeToSourceTree $ (tkCache $ rsTokenCache tm) Map.! mainTid
+    Nothing -> ""
+{-
+  case (rsModule st) of
     Just tm -> retrieveTokensFinal $ (tkCache $ rsTokenCache tm) Map.! mainTid
     Nothing -> []
+-}
 
 -- ---------------------------------------------------------------------
 
-entriesFromState :: RefactState -> [Entry]
-entriesFromState st =
+renderTree :: Tree (Entry PosToken) -> String
+renderTree tree = renderSourceTree $ layoutTreeToSourceTree tree
+
+-- ---------------------------------------------------------------------
+
+sourceTreeFromState :: RefactState -> Maybe (SourceTree PosToken)
+sourceTreeFromState st =
   case (rsModule st) of
-    -- Just tm -> retrieveTokens $ (tkCache $ rsTokenCache tm) Map.! mainTid
-    Just tm -> retrieveTokens' $ (tkCache $ rsTokenCache tm) Map.! mainTid
+    Just tm -> Just $ layoutTreeToSourceTree $ (tkCache $ rsTokenCache tm) Map.! mainTid
+    Nothing -> Nothing
+
+-- ---------------------------------------------------------------------
+
+
+linesFromState :: RefactState -> [Line PosToken]
+linesFromState st =
+  case (rsModule st) of
+    Just tm -> retrieveLinesFromLayoutTree $ (tkCache $ rsTokenCache tm) Map.! mainTid
     Nothing -> []
 
 -- ---------------------------------------------------------------------
 
-mkTokenCache :: Tree Entry -> TokenCache
+layoutFromState :: RefactState -> Maybe (Tree (Entry PosToken))
+layoutFromState st =
+  case (rsModule st) of
+    Just tm -> Just ((tkCache $ rsTokenCache tm) Map.! mainTid)
+    Nothing -> Nothing
+
+-- ---------------------------------------------------------------------
+{-
+entriesFromState :: RefactState -> [Entry PosToken]
+entriesFromState st = error $ "entriesFromState deprecated"
+{-
+  case (rsModule st) of
+    Just tm -> retrieveTokens' $ (tkCache $ rsTokenCache tm) Map.! mainTid
+    Nothing -> []
+-}
+-}
+-- ---------------------------------------------------------------------
+
+mkTokenCache :: Tree (Entry PosToken) -> TokenCache PosToken
 mkTokenCache forest = TK (Map.fromList [((TId 0),forest)]) (TId 0)
 
 -- ---------------------------------------------------------------------
@@ -162,6 +232,9 @@ runRefactGhcStateLog paramcomp logOn  = do
         , rsUniqState = 1
         , rsFlags = RefFlags False
         , rsStorage = StorageNone
+        , rsGraph = []
+        , rsModuleGraph = []
+        , rsCurrentTarget = Nothing
         , rsModule = Nothing
         }
   (r,s) <- runRefactGhc (initGhcSession testCradle (rsetImportPaths defaultTestSettings) >> 
@@ -171,7 +244,7 @@ runRefactGhcStateLog paramcomp logOn  = do
 -- ---------------------------------------------------------------------
 
 testCradle :: Cradle
-testCradle = Cradle "./test/testdata/" Nothing Nothing Nothing
+testCradle = Cradle "./test/testdata/" "./test/testdata/" Nothing []
 
 -- ---------------------------------------------------------------------
 
@@ -187,10 +260,10 @@ logTestSettings = defaultSettings { rsetImportPaths = ["./test/testdata/"]
                                   }
 
 testSettingsMainfile :: FilePath -> RefactSettings
-testSettingsMainfile mainFile = defaultTestSettings { rsetMainFile = Just mainFile }
+testSettingsMainfile mainFile = defaultTestSettings { rsetMainFile = Just [mainFile] }
 
 logTestSettingsMainfile :: FilePath -> RefactSettings
-logTestSettingsMainfile mainFile = logTestSettings { rsetMainFile = Just mainFile }
+logTestSettingsMainfile mainFile = logTestSettings { rsetMainFile = Just [mainFile] }
 
 -- ---------------------------------------------------------------------
 

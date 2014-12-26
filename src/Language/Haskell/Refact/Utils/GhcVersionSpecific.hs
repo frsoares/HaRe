@@ -7,7 +7,8 @@ module Language.Haskell.Refact.Utils.GhcVersionSpecific
     showGhc
   , prettyprint
   , prettyprint2
-  , lexStringToRichTokens
+  , ppType
+  -- , lexStringToRichTokens
   , getDataConstructors
   , setGhcContext
   )
@@ -54,7 +55,17 @@ prettyprint2 x = GHC.renderWithStyle                     (GHC.ppr x) (GHC.cmdlin
 
 -- ---------------------------------------------------------------------
 
+ppType :: GHC.Type -> String
+#if __GLASGOW_HASKELL__ > 704
+ppType x = GHC.renderWithStyle GHC.tracingDynFlags (GHC.pprParendType x) (GHC.mkUserStyle GHC.neverQualify GHC.AllTheWay)
+#else
+ppType x = GHC.renderWithStyle                     (GHC.pprParendType x) (GHC.mkUserStyle GHC.neverQualify GHC.AllTheWay)
+#endif
 
+
+-- ---------------------------------------------------------------------
+
+{- moved to haskell-token-utils
 lexStringToRichTokens :: GHC.RealSrcLoc -> String -> IO [PosToken]
 lexStringToRichTokens startLoc str = do
   -- error $ "lexStringToRichTokens: (startLoc,str)=" ++ (showGhc (startLoc,str)) -- ++AZ
@@ -76,7 +87,7 @@ lexStringToRichTokens startLoc str = do
         GHC.PFailed _srcSpan _msg -> error $ "lexStringToRichTokens:" -- ++ (show $ GHC.ppr msg)
 
         -- addSourceToTokens :: RealSrcLoc -> StringBuffer -> [Located Token] -> [(Located Token, String)]
-
+-}
 
 -- ---------------------------------------------------------------------
 
